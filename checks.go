@@ -29,6 +29,7 @@ import (
 
 var errClientNil = fmt.Errorf("client is nil")
 
+// MongoHealthCheck is function for mongodb health check
 func MongoHealthCheck(mongoClient *mongo.Client, timeout time.Duration) CheckFunc {
 	return func() error {
 		if mongoClient == nil {
@@ -42,6 +43,7 @@ func MongoHealthCheck(mongoClient *mongo.Client, timeout time.Duration) CheckFun
 	}
 }
 
+// IamHealthCheck is function for IAM health check
 func IamHealthCheck(iamClient iam.Client) CheckFunc {
 	return func() error {
 		if iamClient == nil {
@@ -56,6 +58,7 @@ func IamHealthCheck(iamClient iam.Client) CheckFunc {
 	}
 }
 
+// RedisHealthCheck is function for Redis health check
 func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration) CheckFunc {
 	return func() error {
 		if redisClient == nil {
@@ -69,6 +72,7 @@ func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration) CheckFun
 	}
 }
 
+// ElasticHealthCheck is function for Elastic health check
 func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeout time.Duration) CheckFunc {
 	return func() error {
 		if elasticClient == nil {
@@ -104,6 +108,7 @@ func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeou
 	}
 }
 
+// PostgresHealthCheck is function for Postgres health check
 func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration) CheckFunc {
 	return func() error {
 		if postgreClient == nil {
