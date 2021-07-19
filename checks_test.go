@@ -19,8 +19,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
+
+	commonblobgo "github.com/AccelByte/common-blob-go"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 
 	"github.com/AccelByte/iam-go-sdk"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -99,4 +105,41 @@ func TestRedisHealthCheck(t *testing.T) {
 		Password: "redispass",
 	})
 	assert.Nil(t, RedisHealthCheck(redisClient, timeout)())
+}
+
+func TestCloudStorageCheck(t *testing.T) {
+	assert.Error(t, CloudStorageCheck(nil)())
+
+	ctx := context.Background()
+
+	cloudStorage, err := commonblobgo.NewCloudStorage(
+		ctx,
+		true,
+		"aws",
+		"data",
+		"http://localhost:4572",
+		"us-west-2",
+		"AWS_ACCESS_KEY_ID",
+		"AWS_SECRET_ACCESS_KEY",
+		"{\"type\": \"service_account\", \"project_id\": \"my-project-id\"}",
+		"false",
+	)
+	assert.Nil(t, err)
+	if cloudStorage == nil || (reflect.ValueOf(cloudStorage).Kind() == reflect.Ptr && reflect.ValueOf(cloudStorage).IsNil()) {
+		assert.Fail(t, "empty instance of Cloud Storage")
+	}
+
+	err = cloudStorage.CreateBucket(context.Background(), "data/", 7)
+	assert.Nil(t, err)
+
+	awsSession, err := session.NewSession(&aws.Config{
+		Region:           aws.String("us-west-2"),
+		S3ForcePathStyle: aws.Bool(true),
+	})
+	assert.Nil(t, err)
+
+	s3Client := s3.New(awsSession)
+	assert.NotNil(t, s3Client)
+
+	assert.Nil(t, CloudStorageCheck(cloudStorage)())
 }
