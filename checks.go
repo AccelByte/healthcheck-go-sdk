@@ -22,6 +22,7 @@ import (
 
 	"github.com/AccelByte/iam-go-sdk"
 	"github.com/go-redis/redis/v8"
+	gormv1 "github.com/jinzhu/gorm"
 	"github.com/olivere/elastic"
 	"go.mongodb.org/mongo-driver/mongo"
 	"gorm.io/gorm"
@@ -108,7 +109,7 @@ func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeou
 	}
 }
 
-// PostgresHealthCheck is function for Postgres health check
+// PostgresHealthCheck is health check for Postgres with gorm V2 driver
 func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration) CheckFunc {
 	return func() error {
 		if postgreClient == nil {
@@ -124,6 +125,24 @@ func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration) CheckFun
 		defer cancel()
 
 		if err := db.PingContext(ctxWithTimeout); err != nil {
+			return fmt.Errorf("unable to ping postgres database: %v", err)
+		}
+
+		return nil
+	}
+}
+
+// PostgresHealthCheckV1 is health check for Postgres with gorm V1 driver
+func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration) CheckFunc {
+	return func() error {
+		if postgreClient == nil {
+			return errClientNil
+		}
+
+		ctxWithTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		if err := postgreClient.DB().PingContext(ctxWithTimeout); err != nil {
 			return fmt.Errorf("unable to ping postgres database: %v", err)
 		}
 

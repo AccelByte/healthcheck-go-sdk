@@ -10,6 +10,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.5.1
 	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.0
+	github.com/jinzhu/gorm v1.9.16
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/olivere/elastic v6.2.35+incompatible
@@ -18,8 +19,9 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.6.1
 	go.mongodb.org/mongo-driver v1.5.4
+	golang.org/x/tools v0.0.0-20210101214203-2dba1e4ea05c // indirect
+	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gorm.io/driver/postgres v1.1.0
 	gorm.io/gorm v1.21.11
 	moul.io/http2curl v1.0.0 // indirect
-	mvdan.cc/gofumpt v0.1.1 // indirect
 )
