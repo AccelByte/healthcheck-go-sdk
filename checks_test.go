@@ -81,6 +81,16 @@ func TestPostgresHealthCheck(t *testing.T) {
 	assert.Nil(t, PostgresHealthCheck(postgresClient, timeout)())
 }
 
+func TestPostgresV1HealthCheck(t *testing.T) {
+	assert.Error(t, PostgresHealthCheckV1(nil, timeout)())
+
+	postgresArgs := fmt.Sprint("host=localhost port=5432 user=admin dbname=test password=admin")
+	postgresClient, err := gorm.Open(pgdriver.Open(postgresArgs))
+
+	assert.Nil(t, err)
+	assert.Nil(t, PostgresHealthCheck(postgresClient, timeout)())
+}
+
 func TestRedisHealthCheck(t *testing.T) {
 	assert.Error(t, RedisHealthCheck(nil, timeout)())
 
