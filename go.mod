@@ -8,6 +8,7 @@ require (
 	github.com/AccelByte/iam-go-sdk v1.7.0
 	github.com/aws/aws-sdk-go v1.34.28
 	github.com/elazarl/goproxy v0.0.0-20210110162100-a92cc753f88e // indirect
+	github.com/emicklei/go-restful v2.9.3+incompatible // indirect
 	github.com/emicklei/go-restful/v3 v3.5.1
 	github.com/go-redis/redis/v8 v8.11.0
 	github.com/jinzhu/gorm v1.9.16

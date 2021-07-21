@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 
+	restfulV1 "github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/sirupsen/logrus"
 )
@@ -37,6 +38,7 @@ type handler struct {
 
 type Handler interface {
 	AddWebservice() *restful.WebService
+	AddWebserviceV1() *restfulV1.WebService
 	AddHealthCheck(name, url string, check CheckFunc)
 }
 
@@ -61,9 +63,20 @@ func (h *handler) AddWebservice() *restful.WebService {
 	webservice := new(restful.WebService)
 
 	// route to http://example.com/healthz
-	webservice.Route(webservice.GET(defaultHealthCheckPath).To(h.handler))
+	webservice.Route(webservice.GET(defaultHealthCheckPath).To(h.handlerV3))
 	// route to http://example.com/basepath/healthz
-	webservice.Route(webservice.GET("/" + h.basePath + defaultHealthCheckPath).To(h.handler))
+	webservice.Route(webservice.GET("/" + h.basePath + defaultHealthCheckPath).To(h.handlerV3))
+
+	return webservice
+}
+
+func (h *handler) AddWebserviceV1() *restfulV1.WebService {
+	webservice := new(restfulV1.WebService)
+
+	// route to http://example.com/healthz
+	webservice.Route(webservice.GET(defaultHealthCheckPath).To(h.handlerV1))
+	// route to http://example.com/basepath/healthz
+	webservice.Route(webservice.GET("/" + h.basePath + defaultHealthCheckPath).To(h.handlerV1))
 
 	return webservice
 }
@@ -105,7 +118,7 @@ func (h *handler) runChecks(result *response) {
 	wg.Wait()
 }
 
-func (h *handler) handler(_ *restful.Request, resp *restful.Response) {
+func (h *handler) getResponse() (int, *response) {
 	otherComponents := make([]healthOtherComponent, 0)
 	healthStatus := &response{
 		Name:    h.serviceName,
@@ -125,6 +138,23 @@ func (h *handler) handler(_ *restful.Request, resp *restful.Response) {
 			break
 		}
 	}
+	return responseStatus, healthStatus
+}
+
+// handlerV3 will support for go-restful v3
+func (h *handler) handlerV3(_ *restful.Request, resp *restful.Response) {
+
+	responseStatus, healthStatus := h.getResponse()
+
+	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
+		logrus.Error("Error " + err.Error())
+	}
+}
+
+// handlerV1 will support for go-restful v1
+func (h *handler) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) {
+
+	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
 		logrus.Error("Error " + err.Error())
