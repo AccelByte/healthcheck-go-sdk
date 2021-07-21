@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	caller "github.com/AccelByte/http-test-caller"
+	restfulV1 "github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/v3"
 	"github.com/parnurzeal/gorequest"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,32 @@ const (
 func Test_endpoint(t *testing.T) {
 	h := New(serviceName, servicePath)
 	container := restful.NewContainer().Add(h.AddWebservice())
+	h.AddHealthCheck("test", testURL, func() error { return nil })
+
+	resp, _, err :=
+		caller.Call(container).
+			To(gorequest.New().
+				Get("/healthz").
+				MakeRequest()).
+			Read(&response{}).
+			Execute()
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.Code)
+
+	resp2, _, err2 :=
+		caller.Call(container).
+			To(gorequest.New().
+				Get("/" + servicePath + "/healthz").
+				MakeRequest()).
+			Read(&response{}).
+			Execute()
+	require.NoError(t, err2, err2)
+	assert.Equal(t, http.StatusOK, resp2.Code)
+}
+
+func Test_endpointV1(t *testing.T) {
+	h := New(serviceName, servicePath)
+	container := restfulV1.NewContainer().Add(h.AddWebserviceV1())
 	h.AddHealthCheck("test", testURL, func() error { return nil })
 
 	resp, _, err :=
@@ -141,10 +168,31 @@ func Test_AddHealthCheck(t *testing.T) {
 				require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 			}
 
-			var response response
-			_ = json.Unmarshal(resp.Body.Bytes(), &response)
-			require.Equal(t, tt.want, response.Healthy)
-			require.Equal(t, len(tt.args), len(response.Dependencies))
+			var responseV3 response
+			_ = json.Unmarshal(resp.Body.Bytes(), &responseV3)
+			require.Equal(t, tt.want, responseV3.Healthy)
+			require.Equal(t, len(tt.args), len(responseV3.Dependencies))
+
+			containerV1 := restfulV1.NewContainer().Add(h.AddWebserviceV1())
+			resp, _, err =
+				caller.Call(containerV1).
+					To(gorequest.New().
+						Get("/healthz").
+						MakeRequest()).
+					Read(&response{}).
+					Execute()
+			require.NoError(t, err)
+
+			if tt.want {
+				require.Equal(t, http.StatusOK, resp.Code)
+			} else {
+				require.Equal(t, http.StatusServiceUnavailable, resp.Code)
+			}
+
+			var responseV1 response
+			_ = json.Unmarshal(resp.Body.Bytes(), &responseV1)
+			require.Equal(t, tt.want, responseV1.Healthy)
+			require.Equal(t, len(tt.args), len(responseV1.Dependencies))
 		})
 	}
 }
