@@ -20,11 +20,13 @@ import (
 	"net/http"
 	"time"
 
+	commonblobgo "github.com/AccelByte/common-blob-go"
 	"github.com/AccelByte/iam-go-sdk"
 	"github.com/go-redis/redis/v8"
 	gormv1 "github.com/jinzhu/gorm"
 	"github.com/olivere/elastic"
 	"go.mongodb.org/mongo-driver/mongo"
+	"gocloud.dev/gcerrors"
 	"gorm.io/gorm"
 )
 
@@ -147,5 +149,23 @@ func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration) Chec
 		}
 
 		return nil
+	}
+}
+
+// CloudStorageCheck is function for check cloud straoge health based on AccelByte common-blob-go library
+func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage) CheckFunc {
+	return func() error {
+
+		if cloudStorage == nil {
+			return errClientNil
+		}
+
+		// get attribute of random key, if error returns is other than error not found, meaning there's
+		// an error at bucket provider service
+		_, err := cloudStorage.Get(context.Background(), "randomKey")
+		if gcerrors.Code(err) == gcerrors.NotFound || err == nil {
+			return nil
+		}
+		return err
 	}
 }
