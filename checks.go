@@ -155,7 +155,6 @@ func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration) Chec
 // CloudStorageCheck is function for check cloud straoge health based on AccelByte common-blob-go library
 func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage) CheckFunc {
 	return func() error {
-
 		if cloudStorage == nil {
 			return errClientNil
 		}
@@ -166,6 +165,7 @@ func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage) CheckFunc {
 		if gcerrors.Code(err) == gcerrors.NotFound || err == nil {
 			return nil
 		}
+
 		return err
 	}
 }

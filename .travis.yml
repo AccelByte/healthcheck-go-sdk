@@ -1,0 +1,19 @@
+language: go
+
+go:
+  - 1.13
+
+env:
+  - DOCKER_COMPOSE_VERSION=1.24.0
+
+before_install:
+  - curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s -- -b $GOPATH/bin v1.23.6
+  - sudo rm /usr/local/bin/docker-compose
+  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` -o docker-compose
+  - chmod +x docker-compose
+  - sudo mv docker-compose /usr/local/bin
+
+script:
+  - GO111MODULE=on go mod vendor
+  - golangci-lint run --enable-all --timeout 2m
+  - make test
