@@ -8,7 +8,7 @@ require (
 	github.com/AccelByte/iam-go-sdk v1.7.0
 	github.com/aws/aws-sdk-go v1.34.28
 	github.com/elazarl/goproxy v0.0.0-20210110162100-a92cc753f88e // indirect
-	github.com/emicklei/go-restful v2.9.3+incompatible // indirect
+	github.com/emicklei/go-restful v2.9.3+incompatible
 	github.com/emicklei/go-restful/v3 v3.5.1
 	github.com/go-redis/redis/v8 v8.11.0
 	github.com/jinzhu/gorm v1.9.16
@@ -20,7 +20,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.6.1
 	go.mongodb.org/mongo-driver v1.5.4
-	gocloud.dev v0.20.0 // indirect
+	gocloud.dev v0.20.0
 	golang.org/x/tools v0.0.0-20210101214203-2dba1e4ea05c // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gorm.io/driver/postgres v1.1.0

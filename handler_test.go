@@ -17,12 +17,17 @@ import (
 const (
 	testURL     = "www.test.example.com"
 	serviceName = "test"
-	servicePath = "service"
+	servicePath = "/service"
 )
 
 func Test_endpoint(t *testing.T) {
 	h := New(serviceName, servicePath)
-	container := restful.NewContainer().Add(h.AddWebservice())
+
+	container := restful.NewContainer()
+	for _, webService := range h.AddWebservice() {
+		container = container.Add(webService)
+	}
+
 	h.AddHealthCheck("test", testURL, func() error { return nil })
 
 	resp, _, err :=
@@ -48,7 +53,12 @@ func Test_endpoint(t *testing.T) {
 
 func Test_endpointV1(t *testing.T) {
 	h := New(serviceName, servicePath)
-	container := restfulV1.NewContainer().Add(h.AddWebserviceV1())
+	container := restfulV1.NewContainer()
+
+	for _, webService := range h.AddWebserviceV1() {
+		container.Add(webService)
+	}
+
 	h.AddHealthCheck("test", testURL, func() error { return nil })
 
 	resp, _, err :=
@@ -72,6 +82,7 @@ func Test_endpointV1(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp2.Code)
 }
 
+//nolint: funlen
 func Test_AddHealthCheck(t *testing.T) {
 	type arg struct {
 		name      string
@@ -152,7 +163,11 @@ func Test_AddHealthCheck(t *testing.T) {
 					})
 			}
 
-			container := restful.NewContainer().Add(h.AddWebservice())
+			container := restful.NewContainer()
+			for _, webService := range h.AddWebservice() {
+				container.Add(webService)
+			}
+
 			resp, _, err :=
 				caller.Call(container).
 					To(gorequest.New().
@@ -173,7 +188,11 @@ func Test_AddHealthCheck(t *testing.T) {
 			require.Equal(t, tt.want, responseV3.Healthy)
 			require.Equal(t, len(tt.args), len(responseV3.Dependencies))
 
-			containerV1 := restfulV1.NewContainer().Add(h.AddWebserviceV1())
+			containerV1 := restfulV1.NewContainer()
+			for _, webService := range h.AddWebserviceV1() {
+				containerV1.Add(webService)
+			}
+
 			resp, _, err =
 				caller.Call(containerV1).
 					To(gorequest.New().

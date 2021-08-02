@@ -43,15 +43,18 @@ import (
 
 const timeout = 5 * time.Second
 
+//nolint: gosec
 func TestElasticHealthCheck(t *testing.T) {
 	assert.Error(t, ElasticHealthCheck(&elastic.Client{}, "", "", timeout)())
 
 	clientSigner := v4.NewSigner(credentials.NewEnvCredentials())
 	awsHTTPClient, err := aws_signing_client.New(clientSigner, nil, "es", "us-west-2")
 	assert.Nil(t, err)
+
 	awsHTTPClient.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
+
 	elasticClient, err := elastic.NewClient(
 		elastic.SetURL(fmt.Sprintf("%s:%s", "http://localhost", "4571")),
 		elastic.SetHttpClient(awsHTTPClient),
@@ -124,8 +127,11 @@ func TestCloudStorageCheck(t *testing.T) {
 		"{\"type\": \"service_account\", \"project_id\": \"my-project-id\"}",
 		"false",
 	)
+
 	assert.Nil(t, err)
-	if cloudStorage == nil || (reflect.ValueOf(cloudStorage).Kind() == reflect.Ptr && reflect.ValueOf(cloudStorage).IsNil()) {
+
+	if cloudStorage == nil || (reflect.ValueOf(cloudStorage).Kind() == reflect.Ptr &&
+		reflect.ValueOf(cloudStorage).IsNil()) {
 		assert.Fail(t, "empty instance of Cloud Storage")
 	}
 

@@ -37,8 +37,8 @@ type handler struct {
 }
 
 type Handler interface {
-	AddWebservice() *restful.WebService
-	AddWebserviceV1() *restfulV1.WebService
+	AddWebservice() []*restful.WebService
+	AddWebserviceV1() []*restfulV1.WebService
 	AddHealthCheck(name, url string, check CheckFunc)
 }
 
@@ -59,28 +59,44 @@ func (h *handler) AddHealthCheck(name, url string, check CheckFunc) {
 	h.healthDependency[key] = check
 }
 
-func (h *handler) AddWebservice() *restful.WebService {
+func (h *handler) AddWebservice() []*restful.WebService {
+	webservices := make([]*restful.WebService, 2)
+
 	webservice := new(restful.WebService)
 
+	webservice.Path(defaultHealthCheckPath)
 	// route to http://example.com/healthz
-	webservice.Route(webservice.GET(defaultHealthCheckPath).To(h.handlerV3))
-	// route to http://example.com/basepath/healthz
-	webservice.Route(webservice.GET("/" + h.basePath + defaultHealthCheckPath).To(h.handlerV3))
+	webservice.Route(webservice.GET("").To(h.handlerV3))
+	webservices[0] = webservice
 
-	return webservice
+	webserviceWithBasePath := new(restful.WebService)
+	webserviceWithBasePath.Path(h.basePath + defaultHealthCheckPath)
+	// route to http://example.com/basepath/healthz
+	webserviceWithBasePath.Route(webserviceWithBasePath.GET("").To(h.handlerV3))
+	webservices[1] = webserviceWithBasePath
+
+	return webservices
 }
 
-func (h *handler) AddWebserviceV1() *restfulV1.WebService {
+func (h *handler) AddWebserviceV1() []*restfulV1.WebService {
+	webservices := make([]*restfulV1.WebService, 2)
+
 	webservice := new(restfulV1.WebService)
-
+	webservice.Path(defaultHealthCheckPath)
 	// route to http://example.com/healthz
-	webservice.Route(webservice.GET(defaultHealthCheckPath).To(h.handlerV1))
-	// route to http://example.com/basepath/healthz
-	webservice.Route(webservice.GET("/" + h.basePath + defaultHealthCheckPath).To(h.handlerV1))
+	webservice.Route(webservice.GET("").To(h.handlerV1))
+	webservices[0] = webservice
 
-	return webservice
+	webserviceWithBasePath := new(restfulV1.WebService)
+	webserviceWithBasePath.Path(h.basePath + defaultHealthCheckPath)
+	// route to http://example.com/basepath/healthz
+	webserviceWithBasePath.Route(webserviceWithBasePath.GET("").To(h.handlerV1))
+	webservices[1] = webserviceWithBasePath
+
+	return webservices
 }
 
+//nolint: gomnd
 func (h *handler) runChecks(result *response) {
 	h.checksMutex.Lock()
 	defer h.checksMutex.Unlock()
@@ -103,6 +119,7 @@ func (h *handler) runChecks(result *response) {
 
 			if err := check(); err != nil {
 				logrus.Error(err)
+
 				isHealthy = false
 			}
 
@@ -138,12 +155,12 @@ func (h *handler) getResponse() (int, *response) {
 			break
 		}
 	}
+
 	return responseStatus, healthStatus
 }
 
 // handlerV3 will support for go-restful v3
 func (h *handler) handlerV3(_ *restful.Request, resp *restful.Response) {
-
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
@@ -153,7 +170,6 @@ func (h *handler) handlerV3(_ *restful.Request, resp *restful.Response) {
 
 // handlerV1 will support for go-restful v1
 func (h *handler) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) {
-
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
