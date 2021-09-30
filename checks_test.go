@@ -100,14 +100,15 @@ func TestPostgresV1HealthCheck(t *testing.T) {
 	assert.Nil(t, PostgresHealthCheck(postgresClient, timeout)())
 }
 
-func TestRedisHealthCheck(t *testing.T) {
-	assert.Error(t, RedisHealthCheck(nil, timeout)())
+func TestUniversalRedisHealthCheck(t *testing.T) {
+	assert.Error(t, UniversalRedisHealthCheck(nil, timeout)())
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "redispass",
+	redisClient := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs: []string{"localhost:6380", "localhost:6381", "localhost:6382", "localhost:6383",
+			"localhost:6384", "localhost:6385"},
+		RouteRandomly: true,
 	})
-	assert.Nil(t, RedisHealthCheck(redisClient, timeout)())
+	assert.Nil(t, UniversalRedisHealthCheck(redisClient, timeout)())
 }
 
 func TestCloudStorageCheck(t *testing.T) {

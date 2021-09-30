@@ -75,6 +75,20 @@ func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration) CheckFun
 	}
 }
 
+// UniversalRedisHealthCheck is function for Redis health check using Universal Redis (support cluster and standalone)
+func UniversalRedisHealthCheck(redisClient redis.UniversalClient, timeout time.Duration) CheckFunc {
+	return func() error {
+		if redisClient == nil {
+			return errClientNil
+		}
+
+		ctxWithTimeout, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		return redisClient.Ping(ctxWithTimeout).Err()
+	}
+}
+
 // ElasticHealthCheck is function for Elastic health check
 func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeout time.Duration) CheckFunc {
 	return func() error {
