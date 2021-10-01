@@ -100,6 +100,16 @@ func TestPostgresV1HealthCheck(t *testing.T) {
 	assert.Nil(t, PostgresHealthCheck(postgresClient, timeout)())
 }
 
+func TestRedisHealthCheck(t *testing.T) {
+	assert.Error(t, RedisHealthCheck(nil, timeout)())
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "redispass",
+	})
+	assert.Nil(t, RedisHealthCheck(redisClient, timeout)())
+}
+
 func TestUniversalRedisHealthCheck(t *testing.T) {
 	assert.Error(t, UniversalRedisHealthCheck(nil, timeout)())
 
