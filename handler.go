@@ -66,13 +66,21 @@ func (h *handler) AddWebservice() []*restful.WebService {
 
 	webservice.Path(defaultHealthCheckPath)
 	// route to http://example.com/healthz
-	webservice.Route(webservice.GET("").To(h.handlerV3))
+	webservice.Route(
+		webservice.GET("").
+			To(h.handlerV3).
+			Operation("GetHealthcheckInfo"))
+
 	webservices[0] = webservice
 
 	webserviceWithBasePath := new(restful.WebService)
 	webserviceWithBasePath.Path(h.basePath + defaultHealthCheckPath)
 	// route to http://example.com/basepath/healthz
-	webserviceWithBasePath.Route(webserviceWithBasePath.GET("").To(h.handlerV3))
+	webserviceWithBasePath.Route(
+		webserviceWithBasePath.GET("").
+			To(h.handlerV3).
+			Operation("GetHealthcheckInfoV1"))
+
 	webservices[1] = webserviceWithBasePath
 
 	return webservices
