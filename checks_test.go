@@ -28,7 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
-	"github.com/AccelByte/iam-go-sdk"
+	iam "github.com/AccelByte/iam-go-sdk/v2"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/go-redis/redis/v8"
@@ -43,7 +43,7 @@ import (
 
 const timeout = 5 * time.Second
 
-//nolint: gosec
+// nolint: gosec
 func TestElasticHealthCheck(t *testing.T) {
 	assert.Error(t, ElasticHealthCheck(&elastic.Client{}, "", "", timeout)())
 

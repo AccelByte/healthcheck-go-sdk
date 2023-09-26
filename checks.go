@@ -21,7 +21,7 @@ import (
 	"time"
 
 	commonblobgo "github.com/AccelByte/common-blob-go"
-	"github.com/AccelByte/iam-go-sdk"
+	iam "github.com/AccelByte/iam-go-sdk/v2"
 	"github.com/go-redis/redis/v8"
 	gormv1 "github.com/jinzhu/gorm"
 	"github.com/olivere/elastic"
