@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/AccelByte/common-blob-go v0.1.0
 	github.com/AccelByte/http-test-caller v0.0.0-20180918082054-f6be8e00fd35
-	github.com/AccelByte/iam-go-sdk v1.7.0
+	github.com/AccelByte/iam-go-sdk/v2 v2.2.0
 	github.com/aws/aws-sdk-go v1.34.28
 	github.com/elazarl/goproxy v0.0.0-20210110162100-a92cc753f88e // indirect
 	github.com/emicklei/go-restful v2.9.3+incompatible
