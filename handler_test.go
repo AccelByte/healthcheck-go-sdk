@@ -82,12 +82,13 @@ func Test_endpointV1(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp2.Code)
 }
 
-//nolint: funlen
+// nolint: funlen
 func Test_AddHealthCheck(t *testing.T) {
 	type arg struct {
-		name      string
-		checkFunc CheckFunc
-		healthy   bool
+		name             string
+		checkFunc        CheckFunc
+		isHardDependency bool
+		healthy          bool
 	}
 
 	tests := []struct {
@@ -99,14 +100,16 @@ func Test_AddHealthCheck(t *testing.T) {
 			name: "test healthy response",
 			args: []arg{
 				{
-					name:      "test1",
-					checkFunc: func() error { return nil },
-					healthy:   true,
+					name:             "test1",
+					checkFunc:        func() error { return nil },
+					isHardDependency: false,
+					healthy:          true,
 				},
 				{
-					name:      "test2",
-					checkFunc: func() error { return nil },
-					healthy:   true,
+					name:             "test2",
+					checkFunc:        func() error { return nil },
+					isHardDependency: true,
+					healthy:          true,
 				},
 			},
 			want: true,
@@ -115,30 +118,88 @@ func Test_AddHealthCheck(t *testing.T) {
 			name: "test unhealthy response",
 			args: []arg{
 				{
-					name:      "test1",
-					checkFunc: func() error { return fmt.Errorf("error1") },
-					healthy:   false,
+					name:             "test1",
+					checkFunc:        func() error { return fmt.Errorf("error1") },
+					isHardDependency: true,
+					healthy:          false,
 				},
 				{
-					name:      "test2",
-					checkFunc: func() error { return fmt.Errorf("error2") },
-					healthy:   false,
+					name:             "test2",
+					checkFunc:        func() error { return fmt.Errorf("error2") },
+					isHardDependency: true,
+					healthy:          false,
 				},
 			},
 			want: false,
 		},
 		{
-			name: "test unhealthy response different healthy result",
+			name: "test unhealthy response different hard dependency healthy result",
 			args: []arg{
 				{
-					name:      "test1",
-					checkFunc: func() error { return fmt.Errorf("error1") },
-					healthy:   false,
+					name:             "test1",
+					checkFunc:        func() error { return fmt.Errorf("error1") },
+					isHardDependency: true,
+					healthy:          false,
 				},
 				{
-					name:      "test2",
-					checkFunc: func() error { return nil },
-					healthy:   true,
+					name:             "test2",
+					checkFunc:        func() error { return nil },
+					isHardDependency: true,
+					healthy:          true,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "test healthy response with an unhealthy soft dependency",
+			args: []arg{
+				{
+					name:             "test1",
+					checkFunc:        func() error { return fmt.Errorf("error1") },
+					isHardDependency: false,
+					healthy:          false,
+				},
+				{
+					name:             "test2",
+					checkFunc:        func() error { return nil },
+					isHardDependency: false,
+					healthy:          true,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "test healthy response with unhealthy soft dependencies",
+			args: []arg{
+				{
+					name:             "test1",
+					checkFunc:        func() error { return fmt.Errorf("error1") },
+					isHardDependency: false,
+					healthy:          false,
+				},
+				{
+					name:             "test2",
+					checkFunc:        func() error { return fmt.Errorf("error2") },
+					isHardDependency: false,
+					healthy:          false,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "test unhealthy response with unhealthy soft dependency and unhealthy hard dependency",
+			args: []arg{
+				{
+					name:             "test1",
+					checkFunc:        func() error { return fmt.Errorf("error1") },
+					isHardDependency: false,
+					healthy:          false,
+				},
+				{
+					name:             "test2",
+					checkFunc:        func() error { return fmt.Errorf("error2") },
+					isHardDependency: true,
+					healthy:          false,
 				},
 			},
 			want: false,
@@ -154,7 +215,11 @@ func Test_AddHealthCheck(t *testing.T) {
 			expected := response{Name: serviceName, Healthy: true}
 
 			for _, arg := range tt.args {
-				h.AddHealthCheck(arg.name, testURL, arg.checkFunc)
+				if arg.isHardDependency {
+					h.AddHardHealthCheck(arg.name, testURL, arg.checkFunc)
+				} else {
+					h.AddHealthCheck(arg.name, testURL, arg.checkFunc)
+				}
 				expected.Dependencies = append(expected.Dependencies,
 					healthDependency{
 						Name:    arg.name,

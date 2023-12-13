@@ -1,4 +1,4 @@
-module github.com/AccelByte/healthcheck-go-sdk
+module github.com/AccelByte/healthcheck-go-sdk/v2
 
 go 1.16
 

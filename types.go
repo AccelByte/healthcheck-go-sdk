@@ -17,9 +17,10 @@ package healthcheck
 import "sync"
 
 type healthDependency struct {
-	Name    string `json:"name"`
-	URL     string `json:"url"`
-	Healthy bool   `json:"healthy"`
+	Name           string `json:"name"`
+	URL            string `json:"url"`
+	Healthy        bool   `json:"healthy"`
+	HardDependency bool   `json:"hardDependency"`
 }
 
 type CheckFunc func() error
