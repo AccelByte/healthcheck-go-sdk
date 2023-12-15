@@ -27,6 +27,9 @@ import (
 const (
 	nameURLKeySeparator    = "|"
 	defaultHealthCheckPath = "/healthz"
+
+	softDependency = "soft"
+	hardDependency = "hard"
 )
 
 type handler struct {
@@ -39,7 +42,14 @@ type handler struct {
 type Handler interface {
 	AddWebservice() []*restful.WebService
 	AddWebserviceV1() []*restfulV1.WebService
+
+	// AddHealthCheck adds a dependency health check. It will be a soft dependency check, hence if the check failed,
+	// it will only return healthy=false on the corresponding dependency and will not affect the overall healthy status.
 	AddHealthCheck(name, url string, check CheckFunc)
+
+	// AddHardHealthCheck adds a hard dependency health check.
+	// It will return healthy=false on the corresponding dependency and the overall healthy status.
+	AddHardHealthCheck(name, url string, check CheckFunc)
 }
 
 func New(serviceName, basePath string) Handler {
@@ -51,11 +61,23 @@ func New(serviceName, basePath string) Handler {
 	}
 }
 
+// AddHealthCheck adds a dependency health check. It will be a soft dependency check, hence if the check failed,
+// it will only return healthy=false on the corresponding dependency and will not affect the overall healthy status.
 func (h *handler) AddHealthCheck(name, url string, check CheckFunc) {
 	h.checksMutex.Lock()
 	defer h.checksMutex.Unlock()
 
-	key := name + nameURLKeySeparator + url
+	key := name + nameURLKeySeparator + url + nameURLKeySeparator + softDependency
+	h.healthDependency[key] = check
+}
+
+// AddHardHealthCheck adds a dependency hard health check.
+// It will return healthy=false on the corresponding dependency and the overall healthy status.
+func (h *handler) AddHardHealthCheck(name, url string, check CheckFunc) {
+	h.checksMutex.Lock()
+	defer h.checksMutex.Unlock()
+
+	key := name + nameURLKeySeparator + url + nameURLKeySeparator + hardDependency
 	h.healthDependency[key] = check
 }
 
@@ -104,7 +126,7 @@ func (h *handler) AddWebserviceV1() []*restfulV1.WebService {
 	return webservices
 }
 
-//nolint: gomnd
+// nolint: gomnd
 func (h *handler) runChecks(result *response) {
 	h.checksMutex.Lock()
 	defer h.checksMutex.Unlock()
@@ -119,6 +141,7 @@ func (h *handler) runChecks(result *response) {
 		res := strings.Split(nameURL, nameURLKeySeparator)
 		dependencyName := res[0]
 		dependencyURL := res[1]
+		isHardDependency := res[2] == hardDependency
 
 		go func() {
 			defer wg.Done()
@@ -133,9 +156,10 @@ func (h *handler) runChecks(result *response) {
 
 			result.appendHealthCheckDependency(
 				healthDependency{
-					Name:    dependencyName,
-					Healthy: isHealthy,
-					URL:     dependencyURL,
+					Name:           dependencyName,
+					Healthy:        isHealthy,
+					URL:            dependencyURL,
+					HardDependency: isHardDependency,
 				})
 		}()
 	}
@@ -156,7 +180,7 @@ func (h *handler) getResponse() (int, *response) {
 	responseStatus := http.StatusOK
 
 	for _, dependency := range healthStatus.Dependencies {
-		if !dependency.Healthy {
+		if !dependency.Healthy && dependency.HardDependency {
 			responseStatus = http.StatusServiceUnavailable
 			healthStatus.Healthy = false
 
