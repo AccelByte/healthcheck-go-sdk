@@ -14,13 +14,43 @@
 
 package healthcheck
 
-import "sync"
+import (
+	"sync"
+	"time"
+
+	"github.com/sirupsen/logrus"
+)
 
 type healthDependency struct {
-	Name           string `json:"name"`
-	URL            string `json:"url"`
-	Healthy        bool   `json:"healthy"`
-	HardDependency bool   `json:"hardDependency"`
+	Name              string    `json:"name"`
+	URL               string    `json:"url"`
+	Healthy           bool      `json:"healthy"`
+	HardDependency    bool      `json:"hardDependency"`
+	LastKnownGoodCall time.Time `json:"lastKnownGoodCall"`
+	LastCall          time.Time `json:"lastCall"`
+	LastError         LastError `json:"lastError"`
+	checkFunc         CheckFunc
+}
+
+type LastError struct {
+	timestamp time.Time `json:"timestamp"`
+	message   string    `json:"message"`
+}
+
+func (h *healthDependency) check() {
+	h.LastCall = time.Now()
+	err := h.checkFunc()
+	if err != nil {
+		logrus.Error(err)
+		h.LastError.message = err.Error()
+		h.LastError.timestamp = h.LastCall
+		h.Healthy = false
+		return
+	}
+	h.Healthy = true
+	h.LastKnownGoodCall = time.Now()
+
+	return
 }
 
 type CheckFunc func() error

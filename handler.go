@@ -15,9 +15,11 @@
 package healthcheck
 
 import (
+	"context"
+	"errors"
 	"net/http"
-	"strings"
 	"sync"
+	"time"
 
 	restfulV1 "github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/v3"
@@ -25,18 +27,24 @@ import (
 )
 
 const (
-	nameURLKeySeparator    = "|"
 	defaultHealthCheckPath = "/healthz"
 
-	softDependency = "soft"
-	hardDependency = "hard"
+	DefaultBackgroundCheckInterval = 60 * time.Second
 )
 
-type handler struct {
-	serviceName      string
-	basePath         string
-	checksMutex      sync.RWMutex
-	healthDependency map[string]CheckFunc
+type healthCheck struct {
+	serviceName       string
+	basePath          string
+	dependenciesMutex sync.RWMutex
+	dependencies      map[string]healthDependency
+	bgCheckRunning    bool
+	bgCheckInterval   time.Duration
+}
+
+type Config struct {
+	ServiceName             string
+	BasePath                string
+	BackgroundCheckInterval time.Duration
 }
 
 type Handler interface {
@@ -50,38 +58,81 @@ type Handler interface {
 	// AddHardHealthCheck adds a hard dependency health check.
 	// It will return healthy=false on the corresponding dependency and the overall healthy status.
 	AddHardHealthCheck(name, url string, check CheckFunc)
+
+	// StartBackgroundCheck starts a background health check worker. The health check will be performed at a
+	// certain interval, specified in Config, rather than every health endpoint request.
+	StartBackgroundCheck(ctx context.Context)
+
+	// UpdateHealth updates a dependency health status.
+	UpdateHealth(name string, isHealthy bool, lastError *LastError) error
 }
 
-func New(serviceName, basePath string) Handler {
-	return &handler{
-		serviceName:      serviceName,
-		basePath:         basePath,
-		checksMutex:      sync.RWMutex{},
-		healthDependency: make(map[string]CheckFunc),
+func New(config *Config) Handler {
+	if config.BackgroundCheckInterval <= 0 {
+		config.BackgroundCheckInterval = DefaultBackgroundCheckInterval
+	}
+
+	return &healthCheck{
+		serviceName:       config.ServiceName,
+		basePath:          config.BasePath,
+		dependenciesMutex: sync.RWMutex{},
+		dependencies:      make(map[string]healthDependency),
+		bgCheckInterval:   config.BackgroundCheckInterval,
 	}
 }
 
 // AddHealthCheck adds a dependency health check. It will be a soft dependency check, hence if the check failed,
 // it will only return healthy=false on the corresponding dependency and will not affect the overall healthy status.
-func (h *handler) AddHealthCheck(name, url string, check CheckFunc) {
-	h.checksMutex.Lock()
-	defer h.checksMutex.Unlock()
+func (h *healthCheck) AddHealthCheck(name, url string, check CheckFunc) {
+	h.dependenciesMutex.Lock()
+	defer h.dependenciesMutex.Unlock()
 
-	key := name + nameURLKeySeparator + url + nameURLKeySeparator + softDependency
-	h.healthDependency[key] = check
+	h.dependencies[name] = healthDependency{
+		Name:      name,
+		URL:       url,
+		checkFunc: check,
+		LastError: LastError{},
+	}
 }
 
 // AddHardHealthCheck adds a dependency hard health check.
 // It will return healthy=false on the corresponding dependency and the overall healthy status.
-func (h *handler) AddHardHealthCheck(name, url string, check CheckFunc) {
-	h.checksMutex.Lock()
-	defer h.checksMutex.Unlock()
+func (h *healthCheck) AddHardHealthCheck(name, url string, check CheckFunc) {
+	h.dependenciesMutex.Lock()
+	defer h.dependenciesMutex.Unlock()
 
-	key := name + nameURLKeySeparator + url + nameURLKeySeparator + hardDependency
-	h.healthDependency[key] = check
+	h.dependencies[name] = healthDependency{
+		Name:           name,
+		URL:            url,
+		HardDependency: true,
+		checkFunc:      check,
+		LastError:      LastError{},
+	}
 }
 
-func (h *handler) AddWebservice() []*restful.WebService {
+// UpdateHealth updates a dependency health status.
+func (h *healthCheck) UpdateHealth(name string, isHealthy bool, lastError *LastError) error {
+	h.dependenciesMutex.Lock()
+	defer h.dependenciesMutex.Unlock()
+
+	dependency, exist := h.dependencies[name]
+	if !exist {
+		return errors.New("dependency name does not exist")
+	}
+	dependency.Healthy = isHealthy
+	dependency.LastCall = time.Now()
+	if isHealthy {
+		dependency.LastKnownGoodCall = dependency.LastCall
+	}
+	if lastError != nil {
+		dependency.LastError = *lastError
+	}
+	h.dependencies[name] = dependency
+
+	return nil
+}
+
+func (h *healthCheck) AddWebservice() []*restful.WebService {
 	webservices := make([]*restful.WebService, 2)
 
 	webservice := new(restful.WebService)
@@ -108,7 +159,7 @@ func (h *handler) AddWebservice() []*restful.WebService {
 	return webservices
 }
 
-func (h *handler) AddWebserviceV1() []*restfulV1.WebService {
+func (h *healthCheck) AddWebserviceV1() []*restfulV1.WebService {
 	webservices := make([]*restfulV1.WebService, 2)
 
 	webservice := new(restfulV1.WebService)
@@ -126,73 +177,83 @@ func (h *handler) AddWebserviceV1() []*restfulV1.WebService {
 	return webservices
 }
 
-// nolint: gomnd
-func (h *handler) runChecks(result *response) {
-	h.checksMutex.Lock()
-	defer h.checksMutex.Unlock()
+func (h *healthCheck) StartBackgroundCheck(ctx context.Context) {
+	if h.bgCheckRunning {
+		return
+	}
+	h.bgCheckRunning = true
+	h.runChecks()
 
-	var wg sync.WaitGroup
+	ticker := time.NewTicker(h.bgCheckInterval)
 
-	for nameURL, check := range h.healthDependency {
-		wg.Add(1)
-
-		nameURL := nameURL
-		check := check
-		res := strings.Split(nameURL, nameURLKeySeparator)
-		dependencyName := res[0]
-		dependencyURL := res[1]
-		isHardDependency := res[2] == hardDependency
-
-		go func() {
-			defer wg.Done()
-
-			isHealthy := true
-
-			if err := check(); err != nil {
-				logrus.Error(err)
-
-				isHealthy = false
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				h.runChecks()
+			case <-ctx.Done():
+				ticker.Stop()
+				h.bgCheckRunning = false
+				logrus.Info("Background health check worker stopped")
+				return
 			}
+		}
+	}()
+}
 
-			result.appendHealthCheckDependency(
-				healthDependency{
-					Name:           dependencyName,
-					Healthy:        isHealthy,
-					URL:            dependencyURL,
-					HardDependency: isHardDependency,
-				})
-		}()
+// nolint: gomnd
+func (h *healthCheck) runChecks() {
+	wg := &sync.WaitGroup{}
+	for _, d := range h.dependencies {
+		wg.Add(1)
+		go h.check(wg, d)
 	}
 
 	wg.Wait()
 }
 
-func (h *handler) getResponse() (int, *response) {
+func (h *healthCheck) check(wg *sync.WaitGroup, d healthDependency) {
+	defer wg.Done()
+	h.dependenciesMutex.Lock()
+	defer h.dependenciesMutex.Unlock()
+	d.check()
+	h.dependencies[d.Name] = d
+}
+
+func (h *healthCheck) getResponse() (int, *response) {
 	otherComponents := make([]healthOtherComponent, 0)
-	healthStatus := &response{
+	healthStatusResp := &response{
 		Name:    h.serviceName,
 		Healthy: true,
 		Others:  otherComponents,
 	}
 
-	h.runChecks(healthStatus)
+	// if background health check worker is not running, check immediately
+	if !h.bgCheckRunning {
+		h.runChecks()
+	}
+
+	h.dependenciesMutex.Lock()
+	for _, v := range h.dependencies {
+		healthStatusResp.appendHealthCheckDependency(v)
+	}
+	h.dependenciesMutex.Unlock()
 
 	responseStatus := http.StatusOK
 
-	for _, dependency := range healthStatus.Dependencies {
+	for _, dependency := range healthStatusResp.Dependencies {
 		if !dependency.Healthy && dependency.HardDependency {
 			responseStatus = http.StatusServiceUnavailable
-			healthStatus.Healthy = false
-
+			healthStatusResp.Healthy = false
 			break
 		}
 	}
 
-	return responseStatus, healthStatus
+	return responseStatus, healthStatusResp
 }
 
 // handlerV3 will support for go-restful v3
-func (h *handler) handlerV3(_ *restful.Request, resp *restful.Response) {
+func (h *healthCheck) handlerV3(_ *restful.Request, resp *restful.Response) {
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
@@ -201,7 +262,7 @@ func (h *handler) handlerV3(_ *restful.Request, resp *restful.Response) {
 }
 
 // handlerV1 will support for go-restful v1
-func (h *handler) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) {
+func (h *healthCheck) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) {
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
