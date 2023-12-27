@@ -4,12 +4,15 @@ This is library for implementing k8s health check with [go-restful](https://gith
 
 ## Example
 ```go
-h := healthcheck.New("service-name", "serviceBasePath")
+h := healthcheck.New(&healthcheck.Config{ServiceName: "serviceName", BasePath: "/servicePath"})
 
 // redis health check example
 redisClient := new(redis.Client)
 timeout := 5 * time.Second
 h.AddHealthCheck("redis", "redis:6379", h.RedisHealthCheck(redisClient, timeout))
+
+// use background health check instead of check on every request
+h.StartBackgroundCheck(ctx)
 
 container := restful.NewContainer().Add(h.AddWebservice())
 

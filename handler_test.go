@@ -1,10 +1,12 @@
 package healthcheck
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	caller "github.com/AccelByte/http-test-caller"
 	restfulV1 "github.com/emicklei/go-restful"
@@ -21,7 +23,7 @@ const (
 )
 
 func Test_endpoint(t *testing.T) {
-	h := New(serviceName, servicePath)
+	h := New(&Config{ServiceName: serviceName, BasePath: servicePath})
 
 	container := restful.NewContainer()
 	for _, webService := range h.AddWebservice() {
@@ -52,7 +54,7 @@ func Test_endpoint(t *testing.T) {
 }
 
 func Test_endpointV1(t *testing.T) {
-	h := New(serviceName, servicePath)
+	h := New(&Config{ServiceName: serviceName, BasePath: servicePath})
 	container := restfulV1.NewContainer()
 
 	for _, webService := range h.AddWebserviceV1() {
@@ -211,7 +213,7 @@ func Test_AddHealthCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := New(serviceName, servicePath)
+			h := New(&Config{ServiceName: serviceName, BasePath: servicePath})
 			expected := response{Name: serviceName, Healthy: true}
 
 			for _, arg := range tt.args {
@@ -227,6 +229,9 @@ func Test_AddHealthCheck(t *testing.T) {
 						Healthy: arg.healthy,
 					})
 			}
+
+			h.StartBackgroundCheck(context.Background())
+			time.Sleep(2 * time.Second)
 
 			container := restful.NewContainer()
 			for _, webService := range h.AddWebservice() {
