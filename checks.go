@@ -33,7 +33,7 @@ import (
 var errClientNil = fmt.Errorf("client is nil")
 
 // MongoHealthCheck is function for mongodb health check
-func MongoHealthCheck(mongoClient *mongo.Client, timeout time.Duration) CheckFunc {
+func MongoHealthCheck(mongoClient *mongo.Client, timeout time.Duration, additionalCheck ...func(mongoClient *mongo.Client) error) CheckFunc {
 	return func() error {
 		if mongoClient == nil {
 			return errClientNil
@@ -42,12 +42,25 @@ func MongoHealthCheck(mongoClient *mongo.Client, timeout time.Duration) CheckFun
 		ctxWithTimeout, ctxWithTimeoutCancel := context.WithTimeout(context.Background(), timeout)
 		defer ctxWithTimeoutCancel()
 
-		return mongoClient.Ping(ctxWithTimeout, nil)
+		err := mongoClient.Ping(ctxWithTimeout, nil)
+		if err != nil {
+			return err
+		}
+
+		for _, f := range additionalCheck {
+			err = f(mongoClient)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 }
 
-// IamHealthCheck is function for IAM health check
-func IamHealthCheck(iamClient iam.Client) CheckFunc {
+// IamHealthCheck is function for IAM health check. The requiredClientPermissions parameter is an optional parameter to
+// check if the IAM client token has the specified permissions.
+func IamHealthCheck(iamClient iam.Client, requiredClientPermissions []iam.Permission) CheckFunc {
 	return func() error {
 		if iamClient == nil {
 			return errClientNil
@@ -57,12 +70,29 @@ func IamHealthCheck(iamClient iam.Client) CheckFunc {
 			return fmt.Errorf("IAM is unhealthy")
 		}
 
+		if len(requiredClientPermissions) > 0 {
+			clientJWT, err := iamClient.ValidateAndParseClaims(iamClient.ClientToken())
+			if err != nil {
+				return fmt.Errorf("IAM is unhealthy: client token is invalid")
+			}
+
+			for _, p := range requiredClientPermissions {
+				allowed, err := iamClient.ValidatePermission(clientJWT, p, map[string]string{"{namespace}": clientJWT.Namespace})
+				if err != nil {
+					return fmt.Errorf("IAM is unhealthy: %s", err.Error())
+				}
+				if !allowed {
+					return fmt.Errorf("IAM is unhealthy: missing client token permission %s [ACTION: %d]", p.Resource, p.Action)
+				}
+			}
+		}
+
 		return nil
 	}
 }
 
 // RedisHealthCheck is function for Redis health check
-func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration) CheckFunc {
+func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration, additionalCheck ...func(redisClient *redis.Client) error) CheckFunc {
 	return func() error {
 		if redisClient == nil {
 			return errClientNil
@@ -71,12 +101,25 @@ func RedisHealthCheck(redisClient *redis.Client, timeout time.Duration) CheckFun
 		ctxWithTimeout, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		return redisClient.Ping(ctxWithTimeout).Err()
+		err := redisClient.Ping(ctxWithTimeout).Err()
+		if err != nil {
+			return err
+		}
+
+		for _, f := range additionalCheck {
+			err = f(redisClient)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 }
 
 // UniversalRedisHealthCheck is function for Redis health check using Universal Redis (support cluster and standalone)
-func UniversalRedisHealthCheck(redisClient redis.UniversalClient, timeout time.Duration) CheckFunc {
+func UniversalRedisHealthCheck(redisClient redis.UniversalClient, timeout time.Duration,
+	additionalCheck ...func(redisClient redis.UniversalClient) error) CheckFunc {
 	return func() error {
 		if redisClient == nil {
 			return errClientNil
@@ -85,7 +128,19 @@ func UniversalRedisHealthCheck(redisClient redis.UniversalClient, timeout time.D
 		ctxWithTimeout, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 
-		return redisClient.Ping(ctxWithTimeout).Err()
+		err := redisClient.Ping(ctxWithTimeout).Err()
+		if err != nil {
+			return err
+		}
+
+		for _, f := range additionalCheck {
+			err = f(redisClient)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
 	}
 }
 
@@ -97,7 +152,6 @@ func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeou
 		}
 
 		ctxWithTimeout, cancel := context.WithTimeout(context.Background(), timeout)
-
 		defer cancel()
 
 		res, code, err := elasticClient.Ping(fmt.Sprintf("%s:%s", host, port)).Do(ctxWithTimeout)
@@ -121,12 +175,17 @@ func ElasticHealthCheck(elasticClient *elastic.Client, host, port string, timeou
 			return fmt.Errorf("unable to ping elastic search: expected Version.Number != \"\"; got %q", res.Version.Number)
 		}
 
+		_, err = elasticClient.CatHealth().Do(ctxWithTimeout)
+		if err != nil {
+			return fmt.Errorf("unable to check elastic search cluster health: %s", err.Error())
+		}
+
 		return nil
 	}
 }
 
 // PostgresHealthCheck is health check for Postgres with gorm V2 driver
-func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration) CheckFunc {
+func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration, additionalCheck ...func(postgreClient *gorm.DB) error) CheckFunc {
 	return func() error {
 		if postgreClient == nil {
 			return errClientNil
@@ -144,12 +203,19 @@ func PostgresHealthCheck(postgreClient *gorm.DB, timeout time.Duration) CheckFun
 			return fmt.Errorf("unable to ping postgres database: %v", err)
 		}
 
+		for _, f := range additionalCheck {
+			err = f(postgreClient)
+			if err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 }
 
 // PostgresHealthCheckV1 is health check for Postgres with gorm V1 driver
-func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration) CheckFunc {
+func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration, additionalCheck ...func(postgreClient *gormv1.DB) error) CheckFunc {
 	return func() error {
 		if postgreClient == nil {
 			return errClientNil
@@ -162,12 +228,19 @@ func PostgresHealthCheckV1(postgreClient *gormv1.DB, timeout time.Duration) Chec
 			return fmt.Errorf("unable to ping postgres database: %v", err)
 		}
 
+		for _, f := range additionalCheck {
+			err := f(postgreClient)
+			if err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 }
 
 // CloudStorageCheck is function for check cloud straoge health based on AccelByte common-blob-go library
-func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage) CheckFunc {
+func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage, additionalCheck ...func(cloudStorage commonblobgo.CloudStorage) error) CheckFunc {
 	return func() error {
 		if cloudStorage == nil {
 			return errClientNil
@@ -178,6 +251,16 @@ func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage) CheckFunc {
 		_, err := cloudStorage.Get(context.Background(), "randomKey")
 		if gcerrors.Code(err) == gcerrors.NotFound || err == nil {
 			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		for _, f := range additionalCheck {
+			err := f(cloudStorage)
+			if err != nil {
+				return err
+			}
 		}
 
 		return err

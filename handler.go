@@ -63,7 +63,9 @@ type Handler interface {
 	// certain interval, specified in Config, rather than every health endpoint request.
 	StartBackgroundCheck(ctx context.Context)
 
-	// UpdateHealth updates a dependency health status.
+	// UpdateHealth updates a dependency health status. If you want to exclusively update a dependency health
+	// using this, make sure to pass nil value onto check function param when adding the dependency using
+	// AddHealthCheck or AddHardHealthCheck.
 	UpdateHealth(name string, isHealthy bool, lastError *LastError) error
 }
 

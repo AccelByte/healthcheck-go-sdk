@@ -38,6 +38,10 @@ type LastError struct {
 }
 
 func (h *healthDependency) check() {
+	if h.checkFunc == nil {
+		return
+	}
+
 	h.LastCall = time.Now()
 	err := h.checkFunc()
 	if err != nil {
