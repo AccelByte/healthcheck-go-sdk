@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 coverage:
-	go test -coverprofile=coverage.out ./...
+	CGO_ENABLED=1 go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out
 
 clean:
@@ -24,5 +24,5 @@ lint:
 test:
 	docker-compose -f docker-compose-test.yaml up -d -V
 	sleep 20
-	go test -v ./...
+	CGO_ENABLED=1 go test -v ./...
 	docker-compose -f docker-compose-test.yaml down
