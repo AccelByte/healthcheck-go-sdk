@@ -67,8 +67,8 @@ func TestElasticHealthCheck(t *testing.T) {
 }
 
 func TestIamHealthCheck(t *testing.T) {
-	assert.Nil(t, IamHealthCheck(iam.NewMockClient())())
-	assert.Error(t, IamHealthCheck(iam.Client(nil))())
+	assert.Nil(t, IamHealthCheck(iam.NewMockClient(), nil)())
+	assert.Error(t, IamHealthCheck(iam.Client(nil), nil)())
 }
 
 func TestMongoHealthCheck(t *testing.T) {
