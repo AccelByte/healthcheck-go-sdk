@@ -24,6 +24,7 @@ import (
 	"time"
 
 	commonblobgo "github.com/AccelByte/common-blob-go"
+	"github.com/AccelByte/eventstream-go-sdk/v4"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -159,4 +160,43 @@ func TestCloudStorageCheck(t *testing.T) {
 	assert.NotNil(t, s3Client)
 
 	assert.Nil(t, CloudStorageCheck(cloudStorage)())
+}
+
+type eventStreamMock struct{}
+
+func (eventStreamMock) Publish(_ *eventstream.PublishBuilder) error {
+	return nil
+}
+
+func (eventStreamMock) PublishSync(_ *eventstream.PublishBuilder) error {
+	return nil
+}
+
+func (eventStreamMock) Register(_ *eventstream.SubscribeBuilder) error {
+	return nil
+}
+
+func (eventStreamMock) PublishAuditLog(_ *eventstream.AuditLogBuilder) error {
+	return nil
+}
+
+func (eventStreamMock) GetMetadata(topic string, _ time.Duration) (*eventstream.Metadata, error) {
+	if topic == "errorTopic" {
+		return nil, fmt.Errorf("kafka error")
+	}
+
+	return &eventstream.Metadata{Brokers: []eventstream.BrokerMetadata{
+		{
+			ID:   1,
+			Host: "localhost",
+			Port: 9092,
+		}}}, nil
+}
+
+func TestKafkaEventstreamV4HealthCheck(t *testing.T) {
+	client := &eventStreamMock{}
+
+	assert.NotNil(t, KafkaEventstreamV4HealthCheck(nil, "myTopic", time.Second)())
+	assert.Nil(t, KafkaEventstreamV4HealthCheck(client, "myTopic", time.Second)())
+	assert.NotNil(t, KafkaEventstreamV4HealthCheck(client, "errorTopic", time.Second)())
 }

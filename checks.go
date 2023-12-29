@@ -21,6 +21,7 @@ import (
 	"time"
 
 	commonblobgo "github.com/AccelByte/common-blob-go"
+	"github.com/AccelByte/eventstream-go-sdk/v4"
 	iam "github.com/AccelByte/iam-go-sdk/v2"
 	"github.com/go-redis/redis/v8"
 	gormv1 "github.com/jinzhu/gorm"
@@ -262,6 +263,19 @@ func CloudStorageCheck(cloudStorage commonblobgo.CloudStorage, additionalCheck .
 				return err
 			}
 		}
+
+		return err
+	}
+}
+
+// KafkaEventstreamV4HealthCheck is health check for Kafka with eventstream-go-sdk v4 library.
+func KafkaEventstreamV4HealthCheck(client eventstream.Client, topic string, timeout time.Duration) CheckFunc {
+	return func() error {
+		if client == nil {
+			return errClientNil
+		}
+
+		_, err := client.GetMetadata(topic, timeout)
 
 		return err
 	}
