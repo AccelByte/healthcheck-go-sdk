@@ -66,7 +66,7 @@ type Handler interface {
 	// UpdateHealth updates a dependency health status. If you want to exclusively update a dependency health
 	// using this, make sure to pass nil value onto check function param when adding the dependency using
 	// AddHealthCheck or AddHardHealthCheck.
-	UpdateHealth(name string, isHealthy bool, lastError *LastError) error
+	UpdateHealth(name string, isHealthy bool, checkError *CheckError) error
 }
 
 func New(config *Config) Handler {
@@ -93,7 +93,7 @@ func (h *healthCheck) AddHealthCheck(name, url string, check CheckFunc) {
 		Name:      name,
 		URL:       url,
 		checkFunc: check,
-		LastError: LastError{},
+		LastError: nil,
 	}
 }
 
@@ -108,12 +108,12 @@ func (h *healthCheck) AddHardHealthCheck(name, url string, check CheckFunc) {
 		URL:            url,
 		HardDependency: true,
 		checkFunc:      check,
-		LastError:      LastError{},
+		LastError:      nil,
 	}
 }
 
 // UpdateHealth updates a dependency health status.
-func (h *healthCheck) UpdateHealth(name string, isHealthy bool, lastError *LastError) error {
+func (h *healthCheck) UpdateHealth(name string, isHealthy bool, checkError *CheckError) error {
 	h.dependenciesMutex.Lock()
 	defer h.dependenciesMutex.Unlock()
 
@@ -122,12 +122,16 @@ func (h *healthCheck) UpdateHealth(name string, isHealthy bool, lastError *LastE
 		return errors.New("dependency name does not exist")
 	}
 	dependency.Healthy = isHealthy
-	dependency.LastCall = time.Now()
+	now := time.Now()
+	dependency.LastCall = &now
 	if isHealthy {
 		dependency.LastKnownGoodCall = dependency.LastCall
 	}
-	if lastError != nil {
-		dependency.LastError = *lastError
+	if checkError != nil {
+		dependency.LastError = &lastError{Message: checkError.Message}
+		if !checkError.Timestamp.IsZero() {
+			dependency.LastError.Timestamp = &checkError.Timestamp
+		}
 	}
 	h.dependencies[name] = dependency
 
@@ -259,7 +263,7 @@ func (h *healthCheck) handlerV3(_ *restful.Request, resp *restful.Response) {
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
-		logrus.Error("Error " + err.Error())
+		logrus.Error("CheckError " + err.Error())
 	}
 }
 
@@ -268,6 +272,6 @@ func (h *healthCheck) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) 
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
-		logrus.Error("Error " + err.Error())
+		logrus.Error("CheckError " + err.Error())
 	}
 }

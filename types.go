@@ -22,19 +22,26 @@ import (
 )
 
 type healthDependency struct {
-	Name              string    `json:"name"`
-	URL               string    `json:"url"`
-	Healthy           bool      `json:"healthy"`
-	HardDependency    bool      `json:"hardDependency"`
-	LastKnownGoodCall time.Time `json:"lastKnownGoodCall"`
-	LastCall          time.Time `json:"lastCall"`
-	LastError         LastError `json:"lastError"`
+	Name              string     `json:"name"`
+	URL               string     `json:"url"`
+	Healthy           bool       `json:"healthy"`
+	HardDependency    bool       `json:"hardDependency"`
+	LastKnownGoodCall *time.Time `json:"lastKnownGoodCall,omitempty"`
+	LastCall          *time.Time `json:"lastCall,omitempty"`
+	LastError         *lastError `json:"lastError,omitempty"`
 	checkFunc         CheckFunc
 }
 
-type LastError struct {
-	timestamp time.Time `json:"timestamp"`
-	message   string    `json:"message"`
+// CheckError holds error information result of a dependency check submitted via UpdateHealth API.
+type CheckError struct {
+	Timestamp time.Time
+	Message   string
+}
+
+// lastError holds last error information of a dependency
+type lastError struct {
+	Timestamp *time.Time `json:"timestamp"`
+	Message   string     `json:"message"`
 }
 
 func (h *healthDependency) check() {
@@ -42,17 +49,21 @@ func (h *healthDependency) check() {
 		return
 	}
 
-	h.LastCall = time.Now()
+	now := time.Now()
+	h.LastCall = &now
 	err := h.checkFunc()
 	if err != nil {
 		logrus.Error(err)
-		h.LastError.message = err.Error()
-		h.LastError.timestamp = h.LastCall
+		if h.LastError == nil {
+			h.LastError = &lastError{}
+		}
+		h.LastError.Message = err.Error()
+		h.LastError.Timestamp = h.LastCall
 		h.Healthy = false
 		return
 	}
 	h.Healthy = true
-	h.LastKnownGoodCall = time.Now()
+	h.LastKnownGoodCall = &now
 
 	return
 }
