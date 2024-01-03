@@ -263,7 +263,7 @@ func (h *healthCheck) handlerV3(_ *restful.Request, resp *restful.Response) {
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
-		logrus.Error("CheckError " + err.Error())
+		logrus.Error("Error " + err.Error())
 	}
 }
 
@@ -272,6 +272,6 @@ func (h *healthCheck) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) 
 	responseStatus, healthStatus := h.getResponse()
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
-		logrus.Error("CheckError " + err.Error())
+		logrus.Error("Error " + err.Error())
 	}
 }
