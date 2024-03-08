@@ -210,7 +210,16 @@ func (h *healthCheck) StartBackgroundCheck(ctx context.Context) {
 // nolint: gomnd
 func (h *healthCheck) runChecks() {
 	wg := &sync.WaitGroup{}
-	for _, d := range h.dependencies {
+
+	//making a new copy of healthDependencies to avoid race condition
+	healthDependencies := make(map[string]healthDependency)
+	h.dependenciesMutex.Lock()
+	for k, v := range h.dependencies {
+		healthDependencies[k] = v
+	}
+	h.dependenciesMutex.Unlock()
+
+	for _, d := range healthDependencies {
 		wg.Add(1)
 		go h.check(wg, d)
 	}
