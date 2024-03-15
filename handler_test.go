@@ -53,6 +53,27 @@ func Test_endpoint(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp2.Code)
 }
 
+func Test_EndpointWithoutBasePath(t *testing.T) {
+	h := New(&Config{ServiceName: serviceName, BasePath: ""})
+
+	container := restful.NewContainer()
+	for _, webService := range h.AddWebservice() {
+		container = container.Add(webService)
+	}
+
+	h.AddHealthCheck("test", testURL, func() error { return nil })
+
+	resp, _, err :=
+		caller.Call(container).
+			To(gorequest.New().
+				Get("/healthz").
+				MakeRequest()).
+			Read(&response{}).
+			Execute()
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.Code)
+}
+
 func Test_endpointV1(t *testing.T) {
 	h := New(&Config{ServiceName: serviceName, BasePath: servicePath})
 	container := restfulV1.NewContainer()

@@ -17,8 +17,6 @@ package healthcheck
 import (
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 type healthDependency struct {
@@ -53,7 +51,6 @@ func (h *healthDependency) check() {
 	h.LastCall = &now
 	err := h.checkFunc()
 	if err != nil {
-		logrus.Error(err)
 		if h.LastError == nil {
 			h.LastError = &lastError{}
 		}

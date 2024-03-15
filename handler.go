@@ -152,6 +152,10 @@ func (h *healthCheck) AddWebservice() []*restful.WebService {
 
 	webservices[0] = webservice
 
+	if h.basePath == "" {
+		return []*restful.WebService{webservice}
+	}
+
 	webserviceWithBasePath := new(restful.WebService)
 	webserviceWithBasePath.Path(h.basePath + defaultHealthCheckPath)
 	// route to http://example.com/basepath/healthz
