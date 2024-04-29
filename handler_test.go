@@ -51,6 +51,7 @@ func Test_endpoint(t *testing.T) {
 			Execute()
 	require.NoError(t, err2, err2)
 	assert.Equal(t, http.StatusOK, resp2.Code)
+	assert.Equal(t, restful.MIME_JSON, resp.Header().Get("Content-Type"))
 }
 
 func Test_EndpointWithoutBasePath(t *testing.T) {
@@ -72,6 +73,7 @@ func Test_EndpointWithoutBasePath(t *testing.T) {
 			Execute()
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.Code)
+	assert.Equal(t, restful.MIME_JSON, resp.Header().Get("Content-Type"))
 }
 
 func Test_endpointV1(t *testing.T) {
@@ -93,6 +95,7 @@ func Test_endpointV1(t *testing.T) {
 			Execute()
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.Code)
+	assert.Equal(t, restful.MIME_JSON, resp.Header().Get("Content-Type"))
 
 	resp2, _, err2 :=
 		caller.Call(container).
@@ -103,6 +106,7 @@ func Test_endpointV1(t *testing.T) {
 			Execute()
 	require.NoError(t, err2, err2)
 	assert.Equal(t, http.StatusOK, resp2.Code)
+	assert.Equal(t, restful.MIME_JSON, resp.Header().Get("Content-Type"))
 }
 
 func Test_endpointV1WithoutBasePath(t *testing.T) {
@@ -124,6 +128,7 @@ func Test_endpointV1WithoutBasePath(t *testing.T) {
 			Execute()
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.Code)
+	assert.Equal(t, restful.MIME_JSON, resp.Header().Get("Content-Type"))
 }
 
 // nolint: funlen
