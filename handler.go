@@ -148,6 +148,7 @@ func (h *healthCheck) AddWebservice() []*restful.WebService {
 	webservice.Route(
 		webservice.GET("").
 			To(h.handlerV3).
+			Produces(restful.MIME_JSON).
 			Operation("GetHealthcheckInfo"))
 
 	webservices[0] = webservice
@@ -162,6 +163,7 @@ func (h *healthCheck) AddWebservice() []*restful.WebService {
 	webserviceWithBasePath.Route(
 		webserviceWithBasePath.GET("").
 			To(h.handlerV3).
+			Produces(restful.MIME_JSON).
 			Operation("GetHealthcheckInfoV1"))
 
 	webservices[1] = webserviceWithBasePath
@@ -175,7 +177,9 @@ func (h *healthCheck) AddWebserviceV1() []*restfulV1.WebService {
 	webservice := new(restfulV1.WebService)
 	webservice.Path(defaultHealthCheckPath)
 	// route to http://example.com/healthz
-	webservice.Route(webservice.GET("").To(h.handlerV1))
+	webservice.Route(webservice.GET("").
+		To(h.handlerV1).
+		Produces(restful.MIME_JSON))
 	webservices[0] = webservice
 
 	if h.basePath == "" {
@@ -185,7 +189,9 @@ func (h *healthCheck) AddWebserviceV1() []*restfulV1.WebService {
 	webserviceWithBasePath := new(restfulV1.WebService)
 	webserviceWithBasePath.Path(h.basePath + defaultHealthCheckPath)
 	// route to http://example.com/basepath/healthz
-	webserviceWithBasePath.Route(webserviceWithBasePath.GET("").To(h.handlerV1))
+	webserviceWithBasePath.Route(webserviceWithBasePath.GET("").
+		To(h.handlerV1).
+		Produces(restful.MIME_JSON))
 	webservices[1] = webserviceWithBasePath
 
 	return webservices
