@@ -243,9 +243,9 @@ func (h *healthCheck) runChecks() {
 
 func (h *healthCheck) check(wg *sync.WaitGroup, d healthDependency) {
 	defer wg.Done()
+	d.check()
 	h.dependenciesMutex.Lock()
 	defer h.dependenciesMutex.Unlock()
-	d.check()
 	h.dependencies[d.Name] = d
 }
 
