@@ -14,6 +14,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/olivere/elastic v6.2.35+incompatible
 	github.com/parnurzeal/gorequest v0.2.16
+	github.com/prometheus/client_golang v1.16.0
 	github.com/sha1sum/aws_signing_client v0.0.0-20200229211254-f7815c59d5c1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.8.2

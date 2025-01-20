@@ -19,14 +19,32 @@ import (
 	"time"
 )
 
+type AlertLevel string
+
+const (
+	Critical  AlertLevel = "critical"
+	Important AlertLevel = "important"
+	Utility   AlertLevel = "utility"
+	None      AlertLevel = "none"
+)
+
+type Dependency struct {
+	Name       string
+	URL        string
+	AlertLevel AlertLevel
+	CheckFunc  CheckFunc
+}
+
 type healthDependency struct {
-	Name              string     `json:"name"`
-	URL               string     `json:"url"`
-	Healthy           bool       `json:"healthy"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	Healthy bool   `json:"healthy"`
+	// Deprecated: this was replaced with AlertLevel.
 	HardDependency    bool       `json:"hardDependency"`
 	LastKnownGoodCall *time.Time `json:"lastKnownGoodCall,omitempty"`
 	LastCall          *time.Time `json:"lastCall,omitempty"`
 	LastError         *lastError `json:"lastError,omitempty"`
+	AlertLevel        string     `json:"alertLevel"`
 	checkFunc         CheckFunc
 }
 

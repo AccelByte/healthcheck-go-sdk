@@ -14,6 +14,7 @@ of the dependency check result.
 - The `/healthz` response now returns last call time, last known good call time, and last error message of the corresponding dependency health check
 - New `UpdateHealth` method to enable the implementer service to update a dependency health
 - CheckFunc templates improvements
+- Add `AlertLevel` to adjust dependency priority when its alerted
 
 ## Usage
 #### Installing
@@ -29,20 +30,33 @@ Reference: https://github.com/AccelByte/eventstream-go-sdk#v4
 #### Initiating
 ```go
 h := healthcheck.New(&healthcheck.Config{
-ServiceName: "serviceName",
-BasePath: "/servicePath"},
-BackgroundCheckInterval: 60*time.Second,
+  ServiceName: "serviceName",
+  BasePath: "/servicePath",
+  BackgroundCheckInterval: 60*time.Second,
 })
 ```
 
-#### Registering a (soft) dependency (recommended)
+#### Registering a dependency health check
+
+```go
+redisClient := new(redis.Client)
+timeout := 5 * time.Second
+h.AddDependencyHealthCheck(healthcheck.Dependency{
+		Name:       "redis",
+		URL:        "redis:6379",
+		AlertLevel: healthcheck.Important,
+		CheckFunc:  h.RedisHealthCheck(redisClient, timeout),
+})
+```
+
+#### Registering a (soft) dependency (recommended) (DEPRECATED)
 ```go
 redisClient := new(redis.Client)
 timeout := 5 * time.Second
 h.AddHealthCheck("redis", "redis:6379", h.RedisHealthCheck(redisClient, timeout))
 ```
 
-#### Registering a hard dependency
+#### Registering a hard dependency (DEPRECATED)
 ```go
 h.AddHardHealthCheck("other-dependency", "dependency:1234", func() error {
 // do checking
@@ -60,6 +74,16 @@ h.StartBackgroundCheck(ctx)
 serviceContainer := restful.NewContainer()
 ...
 serviceContainer.Add(h.AddWebservice())
+```
+
+#### Expose dependency health prometheus metrics
+
+```go
+registry := prometheus.NewRegistry()
+h.AddMetrics(registry)
+
+// or add metrics to default prometheus registry
+h.AddMetrics(prometheus.DefaultRegisterer)
 ```
 
 

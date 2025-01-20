@@ -23,6 +23,7 @@ import (
 
 	restfulV1 "github.com/emicklei/go-restful"
 	"github.com/emicklei/go-restful/v3"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -33,12 +34,13 @@ const (
 )
 
 type healthCheck struct {
-	serviceName       string
-	basePath          string
-	dependenciesMutex sync.RWMutex
-	dependencies      map[string]healthDependency
-	bgCheckRunning    bool
-	bgCheckInterval   time.Duration
+	serviceName             string
+	basePath                string
+	dependenciesMutex       sync.RWMutex
+	dependencies            map[string]healthDependency
+	bgCheckRunning          bool
+	bgCheckInterval         time.Duration
+	dependencyFailureMetric *prometheus.GaugeVec
 }
 
 type Config struct {
@@ -51,13 +53,21 @@ type Handler interface {
 	AddWebservice() []*restful.WebService
 	AddWebserviceV1() []*restfulV1.WebService
 
+	// DEPRECATED: Use AddDependencyHealthCheck instead
 	// AddHealthCheck adds a dependency health check. It will be a soft dependency check, hence if the check failed,
 	// it will only return healthy=false on the corresponding dependency and will not affect the overall healthy status.
 	AddHealthCheck(name, url string, check CheckFunc)
 
+	// DEPRECATED: Use AddDependencyHealthCheck instead
 	// AddHardHealthCheck adds a hard dependency health check.
 	// It will return healthy=false on the corresponding dependency and the overall healthy status.
 	AddHardHealthCheck(name, url string, check CheckFunc)
+
+	// AddDependencyHealthCheck adds dependency health check with provided Dependency object
+	AddDependencyHealthCheck(dep Dependency)
+
+	// AddMetrics adds prometheus metrics for dependency health check failures into provided registerer
+	AddMetrics(registerer prometheus.Registerer) error
 
 	// StartBackgroundCheck starts a background health check worker. The health check will be performed at a
 	// certain interval, specified in Config, rather than every health endpoint request.
@@ -90,10 +100,11 @@ func (h *healthCheck) AddHealthCheck(name, url string, check CheckFunc) {
 	defer h.dependenciesMutex.Unlock()
 
 	h.dependencies[name] = healthDependency{
-		Name:      name,
-		URL:       url,
-		checkFunc: check,
-		LastError: nil,
+		Name:       name,
+		URL:        url,
+		checkFunc:  check,
+		LastError:  nil,
+		AlertLevel: string(Utility),
 	}
 }
 
@@ -103,13 +114,58 @@ func (h *healthCheck) AddHardHealthCheck(name, url string, check CheckFunc) {
 	h.dependenciesMutex.Lock()
 	defer h.dependenciesMutex.Unlock()
 
-	h.dependencies[name] = healthDependency{
+	dependency := healthDependency{
 		Name:           name,
 		URL:            url,
 		HardDependency: true,
 		checkFunc:      check,
 		LastError:      nil,
+		AlertLevel:     string(Important),
 	}
+	h.dependencies[name] = dependency
+	h.initDependencyFailureMetric(&dependency)
+}
+
+func (h *healthCheck) AddDependencyHealthCheck(dep Dependency) {
+	h.dependenciesMutex.Lock()
+	defer h.dependenciesMutex.Unlock()
+
+	if dep.AlertLevel == "" {
+		dep.AlertLevel = None
+	}
+
+	dependency := healthDependency{
+		Name:           dep.Name,
+		URL:            dep.URL,
+		HardDependency: false,
+		LastError:      nil,
+		AlertLevel:     string(dep.AlertLevel),
+		checkFunc:      dep.CheckFunc,
+	}
+	h.dependencies[dep.Name] = dependency
+	h.initDependencyFailureMetric(&dependency)
+}
+
+func (h *healthCheck) AddMetrics(registerer prometheus.Registerer) error {
+	dependencyFailure := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "ab_service_dependency_failures",
+			Help: "State of service dependency failures, 0 is healthy 1 is unhealthy",
+		},
+		[]string{"dependency_name", "alert_level"},
+	)
+	if err := registerer.Register(dependencyFailure); err != nil {
+		return err
+	}
+	h.dependencyFailureMetric = dependencyFailure
+
+	h.dependenciesMutex.RLock()
+	defer h.dependenciesMutex.RUnlock()
+	for _, d := range h.dependencies {
+		h.initDependencyFailureMetric(&d)
+	}
+
+	return nil
 }
 
 // UpdateHealth updates a dependency health status.
@@ -134,6 +190,8 @@ func (h *healthCheck) UpdateHealth(name string, isHealthy bool, checkError *Chec
 		}
 	}
 	h.dependencies[name] = dependency
+
+	h.setDependencyFailureMetric(&dependency)
 
 	return nil
 }
@@ -247,6 +305,7 @@ func (h *healthCheck) check(wg *sync.WaitGroup, d healthDependency) {
 	h.dependenciesMutex.Lock()
 	defer h.dependenciesMutex.Unlock()
 	h.dependencies[d.Name] = d
+	h.setDependencyFailureMetric(&d)
 }
 
 func (h *healthCheck) getResponse() (int, *response) {
@@ -296,5 +355,21 @@ func (h *healthCheck) handlerV1(_ *restfulV1.Request, resp *restfulV1.Response) 
 
 	if err := resp.WriteHeaderAndJson(responseStatus, healthStatus, restful.MIME_JSON); err != nil {
 		logrus.Error("Error " + err.Error())
+	}
+}
+
+func (h *healthCheck) initDependencyFailureMetric(d *healthDependency) {
+	if h.dependencyFailureMetric != nil {
+		h.dependencyFailureMetric.WithLabelValues(d.Name, d.AlertLevel)
+	}
+}
+
+func (h *healthCheck) setDependencyFailureMetric(d *healthDependency) {
+	if h.dependencyFailureMetric != nil {
+		num := 0.0
+		if !d.Healthy {
+			num = 1
+		}
+		h.dependencyFailureMetric.WithLabelValues(d.Name, d.AlertLevel).Set(num)
 	}
 }
