@@ -1,3 +1,5 @@
+// Deprecated: this module (v1 and v2) is no longer maintained and receives no
+// updates or security fixes. Do not use it for new development.
 module github.com/AccelByte/healthcheck-go-sdk/v2
 
 go 1.16
